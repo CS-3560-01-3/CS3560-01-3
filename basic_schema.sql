@@ -74,6 +74,7 @@ DROP TABLE IF EXISTS `item`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `item` (
   `itemID` int NOT NULL AUTO_INCREMENT,
+  `itemName` varchar(100) DEFAULT NULL,
   `supplierID` int DEFAULT NULL,
   `stock` int DEFAULT NULL,
   `threshold` int DEFAULT NULL,
@@ -92,7 +93,7 @@ CREATE TABLE `item` (
 
 LOCK TABLES `item` WRITE;
 /*!40000 ALTER TABLE `item` DISABLE KEYS */;
-INSERT INTO `item` VALUES (1,1,50,5,1);
+INSERT INTO `item` VALUES (1,'Laptop',1,50,5,1);
 /*!40000 ALTER TABLE `item` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -214,3 +215,10 @@ UNLOCK TABLES;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
 -- Dump completed on 2026-04-21 20:29:20
+
+INSERT INTO `supplier` VALUES (1,'sup@test.com','NY');
+INSERT INTO `supplier` VALUES (2,'sup2@test.com','LA');
+INSERT INTO `supplier` VALUES (3,'sup3@test.com','Chicago');
+INSERT INTO `category` VALUES (1,'Electronics');
+INSERT INTO `category` VALUES (2,'Clothing');
+INSERT INTO `category` VALUES (3,'Books');
