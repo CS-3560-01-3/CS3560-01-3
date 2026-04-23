@@ -70,20 +70,18 @@ def _get_next_id(counter_name):
     return NEXT_IDS[counter_name]
 
 
-def add_account(phone_number, e_mail, address):
-    """
-    Adds a new buyer row to the database and returns the account ID used.
-    """
+def add_account(phone_number, e_mail, address, password=None):
+    """Adds a buyer row; returns the account ID."""
     account_id = _get_next_id("account")
     connection = _get_connection()
     cursor = connection.cursor()
     try:
         cursor.execute(
             """
-            INSERT INTO buyer (accountID, email, phoneNum, address)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO buyer (accountID, email, phoneNum, passw, address)
+            VALUES (%s, %s, %s, %s, %s)
             """,
-            (account_id, e_mail, phone_number, address),
+            (account_id, e_mail, phone_number, password, address),
         )
         connection.commit()
         refresh_id_counters()
@@ -102,6 +100,24 @@ def view_account(account_id):
     try:
         cursor.execute("SELECT * FROM buyer WHERE accountID = %s", (account_id,))
         return cursor.fetchone()
+    finally:
+        cursor.close()
+        connection.close()
+
+
+def login(e_mail, password):
+    """
+    Verifies login credentials and returns the account ID if valid.
+    """
+    connection = _get_connection()
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT accountID, passw FROM buyer WHERE email = %s", (e_mail,))
+        result = cursor.fetchone()
+        if result and result.get("passw") == password:
+            return result["accountID"]
+        else:
+            return None
     finally:
         cursor.close()
         connection.close()
