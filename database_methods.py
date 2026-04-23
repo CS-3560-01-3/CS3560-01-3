@@ -152,27 +152,6 @@ def remove_account(account_id):
         cursor.close()
         connection.close()
 
-
-def add_category(category_name):
-    """
-    Inserts a category row and returns the new category ID.
-    """
-    category_id = _get_next_id("category")
-    connection = _get_connection()
-    cursor = connection.cursor()
-    try:
-        cursor.execute(
-            "INSERT INTO category (categoryID, categoryName) VALUES (%s, %s)",
-            (category_id, category_name),
-        )
-        connection.commit()
-        refresh_id_counters()
-        return category_id
-    finally:
-        cursor.close()
-        connection.close()
-
-
 def view_category(category_id):
     """
     Returns the category row for the given category ID.
@@ -186,42 +165,6 @@ def view_category(category_id):
         cursor.close()
         connection.close()
 
-
-def update_category(category_id, category_name=None):
-    """
-    Updates the category name.
-    """
-    if category_name is None:
-        return False
-
-    connection = _get_connection()
-    cursor = connection.cursor()
-    try:
-        cursor.execute(
-            "UPDATE category SET categoryName = %s WHERE categoryID = %s",
-            (category_name, category_id),
-        )
-        connection.commit()
-        return cursor.rowcount > 0
-    finally:
-        cursor.close()
-        connection.close()
-
-
-def remove_category(category_id):
-    """
-    Deletes a category row by category ID.
-    """
-    connection = _get_connection()
-    cursor = connection.cursor()
-    try:
-        cursor.execute("DELETE FROM category WHERE categoryID = %s", (category_id,))
-        connection.commit()
-        refresh_id_counters()
-        return cursor.rowcount > 0
-    finally:
-        cursor.close()
-        connection.close()
 
 
 def search_item(item_id):
@@ -384,23 +327,6 @@ def view_order_items(order_id):
         connection.close()
 
 
-def remove_order(order_id):
-    """
-    Deletes orderitem rows and then the order row for the given order ID.
-    """
-    connection = _get_connection()
-    cursor = connection.cursor()
-    try:
-        cursor.execute("DELETE FROM orderitem WHERE orderID = %s", (order_id,))
-        cursor.execute("DELETE FROM `order` WHERE orderID = %s", (order_id,))
-        connection.commit()
-        refresh_id_counters()
-        return cursor.rowcount > 0
-    finally:
-        cursor.close()
-        connection.close()
-
-
 def add_payment(account_id, card_num, expiration, pin):
     """
     Inserts a payment row and returns the payment ID used.
@@ -479,87 +405,6 @@ def remove_payment(payment_id):
     cursor = connection.cursor()
     try:
         cursor.execute("DELETE FROM payment WHERE paymentID = %s", (payment_id,))
-        connection.commit()
-        refresh_id_counters()
-        return cursor.rowcount > 0
-    finally:
-        cursor.close()
-        connection.close()
-
-
-def add_supplier(email, address):
-    """
-    Inserts a supplier row and returns the supplier ID used.
-    """
-    supplier_id = _get_next_id("supplier")
-    connection = _get_connection()
-    cursor = connection.cursor()
-    try:
-        cursor.execute(
-            "INSERT INTO supplier (supplierID, email, address) VALUES (%s, %s, %s)",
-            (supplier_id, email, address),
-        )
-        connection.commit()
-        refresh_id_counters()
-        return supplier_id
-    finally:
-        cursor.close()
-        connection.close()
-
-
-def view_supplier(supplier_id):
-    """
-    Returns the supplier row for the given supplier ID.
-    """
-    connection = _get_connection()
-    cursor = connection.cursor(dictionary=True)
-    try:
-        cursor.execute("SELECT * FROM supplier WHERE supplierID = %s", (supplier_id,))
-        return cursor.fetchone()
-    finally:
-        cursor.close()
-        connection.close()
-
-
-def update_supplier(supplier_id, email=None, address=None):
-    """
-    Updates a supplier row.
-    """
-    fields = {
-        "email": email,
-        "address": address,
-    }
-    updates = [(column, value) for column, value in fields.items() if value is not None]
-
-    if not updates:
-        return False
-
-    set_clause = ", ".join(f"{column} = %s" for column, _ in updates)
-    values = [value for _, value in updates]
-    values.append(supplier_id)
-
-    connection = _get_connection()
-    cursor = connection.cursor()
-    try:
-        cursor.execute(
-            f"UPDATE supplier SET {set_clause} WHERE supplierID = %s",
-            tuple(values),
-        )
-        connection.commit()
-        return cursor.rowcount > 0
-    finally:
-        cursor.close()
-        connection.close()
-
-
-def remove_supplier(supplier_id):
-    """
-    Deletes a supplier row by supplier ID.
-    """
-    connection = _get_connection()
-    cursor = connection.cursor()
-    try:
-        cursor.execute("DELETE FROM supplier WHERE supplierID = %s", (supplier_id,))
         connection.commit()
         refresh_id_counters()
         return cursor.rowcount > 0
