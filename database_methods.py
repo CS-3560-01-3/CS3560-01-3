@@ -70,7 +70,7 @@ def _get_next_id(counter_name):
     return NEXT_IDS[counter_name]
 
 
-def add_account(phone_number, e_mail, address):
+def add_account(phone_number, e_mail, password, address):
     """
     Adds a new buyer row to the database and returns the account ID used.
     """
@@ -80,14 +80,91 @@ def add_account(phone_number, e_mail, address):
     try:
         cursor.execute(
             """
-            INSERT INTO buyer (accountID, email, phoneNum, address)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO buyer (accountID, email, phoneNum, passw, address)
+            VALUES (%s, %s, %s, %s, %s)
             """,
-            (account_id, e_mail, phone_number, address),
+            (account_id, e_mail, phone_number, password, address),
         )
         connection.commit()
         refresh_id_counters()
         return account_id
+    finally:
+        cursor.close()
+        connection.close()
+
+def view_account(account_id):
+    """
+    Returns the buyer row for the given account ID.
+    """
+    connection = _get_connection()
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT * FROM buyer WHERE accountID = %s", (account_id,))
+        return cursor.fetchone()
+    finally:
+        cursor.close()
+        connection.close()
+
+
+def update_account(account_id, phone_number=None, e_mail=None, password=None, address=None):
+    """
+    Updates buyer contact information.
+    """
+    fields = {
+        "phoneNum": phone_number,
+        "email": e_mail,
+        "passw": password,
+        "address": address,
+    }
+    updates = [(column, value) for column, value in fields.items() if value is not None]
+
+    if not updates:
+        return False
+
+    set_clause = ", ".join(f"{column} = %s" for column, _ in updates)
+    values = [value for _, value in updates]
+    values.append(account_id)
+
+    connection = _get_connection()
+    cursor = connection.cursor()
+    try:
+        query = f"UPDATE buyer SET {set_clause} WHERE accountID = %s"
+        cursor.execute(query, tuple(values))
+        connection.commit()
+        return cursor.rowcount > 0
+    finally:
+        cursor.close()
+        connection.close()
+
+
+def remove_account(account_id):
+    """
+    Deletes a buyer row by account ID.
+    """
+    connection = _get_connection()
+    cursor = connection.cursor()
+    try:
+        cursor.execute("DELETE FROM buyer WHERE accountID = %s", (account_id,))
+        connection.commit()
+        refresh_id_counters()
+        return cursor.rowcount > 0
+    finally:
+        cursor.close()
+        connection.close()
+
+def login(e_mail, password):
+    """
+    Verifies login credentials and returns the account ID if valid.
+    """
+    connection = _get_connection()
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT accountID, passw FROM buyer WHERE email = %s", (e_mail,))
+        result = cursor.fetchone()
+        if result and result.get("passw") == password:
+            return result["accountID"]
+        else:
+            return None
     finally:
         cursor.close()
         connection.close()

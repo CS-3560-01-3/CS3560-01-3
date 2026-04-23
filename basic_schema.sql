@@ -26,6 +26,7 @@ CREATE TABLE `buyer` (
   `accountID` int NOT NULL,
   `email` varchar(100) DEFAULT NULL,
   `phoneNum` varchar(20) DEFAULT NULL,
+  `passw` varchar(255) DEFAULT NULL,
   `address` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`accountID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
