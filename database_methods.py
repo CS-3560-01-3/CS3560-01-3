@@ -168,3 +168,133 @@ def login(e_mail, password):
     finally:
         cursor.close()
         connection.close()
+
+
+def search_item(item_id):
+    """
+    Returns the item row for the given item ID.
+    """
+    connection = _get_connection()
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT * FROM item WHERE itemID = %s", (item_id,))
+        return cursor.fetchone()
+    finally:
+        cursor.close()
+        connection.close()
+
+
+def low_stock_alert(item_id):
+    """
+    Returns True when an item's stock is at or below its threshold.
+    """
+    connection = _get_connection()
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            "SELECT stock, threshold FROM item WHERE itemID = %s",
+            (item_id,),
+        )
+        item = cursor.fetchone()
+        if item is None:
+            return False
+
+        return item["stock"] <= item["threshold"]
+    finally:
+        cursor.close()
+        connection.close()
+
+
+def create_order(account_id, item_ids, item_quantities):
+    """
+    Creates an order and matching orderitem rows using the basic_schema tables.
+    """
+    if not item_ids or len(item_ids) != len(item_quantities):
+        return None
+
+    if any(quantity <= 0 for quantity in item_quantities):
+        return None
+
+    connection = _get_connection()
+    cursor = connection.cursor(dictionary=True)
+
+    try:
+        cursor.execute("SELECT accountID FROM buyer WHERE accountID = %s", (account_id,))
+        if cursor.fetchone() is None:
+            connection.rollback()
+            return None
+
+        items = []
+        for item_id, quantity in zip(item_ids, item_quantities):
+            cursor.execute(
+                """
+                SELECT itemID, stock
+                FROM item
+                WHERE itemID = %s
+                FOR UPDATE
+                """,
+                (item_id,),
+            )
+            item = cursor.fetchone()
+            if item is None or item["stock"] < quantity:
+                connection.rollback()
+                return None
+            items.append(item)
+
+        cursor.execute(
+            "INSERT INTO `order` (accountID, purchaseDate) VALUES (%s, CURDATE())",
+            (account_id,),
+        )
+        order_id = cursor.lastrowid
+
+        for item, quantity in zip(items, item_quantities):
+            cursor.execute(
+                """
+                INSERT INTO orderitem (orderID, itemID, itemQuantity)
+                VALUES (%s, %s, %s)
+                """,
+                (order_id, item["itemID"], quantity),
+            )
+            cursor.execute(
+                "UPDATE item SET stock = stock - %s WHERE itemID = %s",
+                (quantity, item["itemID"]),
+            )
+
+        connection.commit()
+        return order_id
+    except mysql.connector.Error:
+        connection.rollback()
+        return None
+    finally:
+        cursor.close()
+        connection.close()
+
+
+def view_order(order_id):
+    """
+    Returns the order row for the given order ID.
+    """
+    connection = _get_connection()
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT * FROM `order` WHERE orderID = %s", (order_id,))
+        return cursor.fetchone()
+    finally:
+        cursor.close()
+        connection.close()
+
+
+def view_order_items(order_id):
+    """
+    Returns all orderitem rows for a given order ID.
+    """
+    connection = _get_connection()
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT * FROM orderitem WHERE orderID = %s", (order_id,))
+        return cursor.fetchall()
+    finally:
+        cursor.close()
+        connection.close()
+
+
