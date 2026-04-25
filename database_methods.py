@@ -1,9 +1,25 @@
+"""
+Database helper functions for the basic business backend.
+
+This module centralizes the MySQL connection setup and provides small CRUD-style
+helpers for buyers, items, orders, and payments. Each function opens its own
+connection, commits or rolls back its own transaction, and closes database
+resources in a `finally` block so callers do not need to manage cursors directly.
+"""
+
 import os
 
 import mysql.connector
 
 
 def _get_connection():
+    """
+    Create and return a new MySQL database connection.
+
+    Connection values are read from environment variables when available, with
+    local-development defaults used as a fallback. Each public helper calls this
+    function so every operation gets a fresh connection.
+    """
     return mysql.connector.connect(
         host=os.getenv("DB_HOST", "localhost"),
         user=os.getenv("DB_USER", "root"),
@@ -12,6 +28,7 @@ def _get_connection():
     )
 
 
+# Maps physical table names to the keys used by the ID counter dictionaries.
 ID_TABLES = {
     "buyer": "account",
     "category": "category",
@@ -21,6 +38,7 @@ ID_TABLES = {
     "supplier": "supplier",
 }
 
+# Stores the current number of rows in each tracked table.
 ID_COUNTS = {
     "account": 0,
     "category": 0,
@@ -30,6 +48,8 @@ ID_COUNTS = {
     "supplier": 0,
 }
 
+# Stores the next manual ID value to use for tables that do not rely on
+# AUTO_INCREMENT in this code.
 NEXT_IDS = {
     "account": 1,
     "category": 1,
@@ -41,6 +61,17 @@ NEXT_IDS = {
 
 
 def refresh_id_counters():
+    """
+    Recalculate row counts and next manual IDs for tracked tables.
+
+    Returns:
+        dict: Copies of the updated `ID_COUNTS` and `NEXT_IDS` dictionaries.
+
+    Note:
+        This uses `COUNT(*) + 1` as the next ID. That works only when IDs are
+        sequential with no gaps. If rows are deleted, this can reuse an existing
+        ID. AUTO_INCREMENT columns are usually safer for production systems.
+    """
     connection = _get_connection()
     cursor = connection.cursor()
     try:
@@ -50,6 +81,7 @@ def refresh_id_counters():
             ID_COUNTS[counter_name] = count
             NEXT_IDS[counter_name] = count + 1
 
+        # Return copies so callers cannot accidentally mutate the globals.
         return {
             "counts": ID_COUNTS.copy(),
             "next_ids": NEXT_IDS.copy(),
@@ -59,6 +91,8 @@ def refresh_id_counters():
         connection.close()
 
 
+# Try to initialize counters when the module is imported. If the database is not
+# running yet, allow the import to succeed and refresh counters later on demand.
 try:
     refresh_id_counters()
 except mysql.connector.Error:
@@ -66,12 +100,32 @@ except mysql.connector.Error:
 
 
 def _get_next_id(counter_name):
+    """
+    Refresh counters and return the next manual ID for a tracked entity.
+
+    Args:
+        counter_name (str): Key from `NEXT_IDS`, such as "account" or "payment".
+
+    Returns:
+        int: The next ID currently calculated for that entity.
+    """
     refresh_id_counters()
     return NEXT_IDS[counter_name]
 
 
 def add_account(phone_number, e_mail, address, password=None):
-    """Adds a buyer row; returns the account ID."""
+    """
+    Insert a new buyer account.
+
+    Args:
+        phone_number (str): Buyer's phone number.
+        e_mail (str): Buyer's email address.
+        address (str): Buyer's mailing or shipping address.
+        password (str | None): Optional account password to store in `passw`.
+
+    Returns:
+        int: The account ID assigned to the inserted buyer.
+    """
     account_id = _get_next_id("account")
     connection = _get_connection()
     cursor = connection.cursor()
@@ -93,7 +147,13 @@ def add_account(phone_number, e_mail, address, password=None):
 
 def view_account(account_id):
     """
-    Returns the buyer row for the given account ID.
+    Fetch one buyer account by ID.
+
+    Args:
+        account_id (int): Buyer account ID.
+
+    Returns:
+        dict | None: Buyer row as a dictionary, or None if no account exists.
     """
     connection = _get_connection()
     cursor = connection.cursor(dictionary=True)
@@ -107,7 +167,14 @@ def view_account(account_id):
 
 def login(e_mail, password):
     """
-    Verifies login credentials and returns the account ID if valid.
+    Check buyer login credentials.
+
+    Args:
+        e_mail (str): Email address entered by the user.
+        password (str): Password entered by the user.
+
+    Returns:
+        int | None: Matching account ID when credentials are valid; otherwise None.
     """
     connection = _get_connection()
     cursor = connection.cursor(dictionary=True)
@@ -125,7 +192,19 @@ def login(e_mail, password):
 
 def update_account(account_id, phone_number=None, e_mail=None, address=None):
     """
-    Updates buyer contact information.
+    Update selected contact fields for a buyer account.
+
+    Only arguments that are not None are included in the SQL UPDATE statement.
+
+    Args:
+        account_id (int): Buyer account to update.
+        phone_number (str | None): New phone number, if changing it.
+        e_mail (str | None): New email address, if changing it.
+        address (str | None): New address, if changing it.
+
+    Returns:
+        bool: True if a row was updated; False if no fields were provided or no
+        matching account was found.
     """
     fields = {
         "phoneNum": phone_number,
@@ -137,6 +216,8 @@ def update_account(account_id, phone_number=None, e_mail=None, address=None):
     if not updates:
         return False
 
+    # Build the SET clause from trusted column names while keeping values
+    # parameterized to avoid SQL injection.
     set_clause = ", ".join(f"{column} = %s" for column, _ in updates)
     values = [value for _, value in updates]
     values.append(account_id)
@@ -155,7 +236,13 @@ def update_account(account_id, phone_number=None, e_mail=None, address=None):
 
 def remove_account(account_id):
     """
-    Deletes a buyer row by account ID.
+    Delete one buyer account by ID.
+
+    Args:
+        account_id (int): Buyer account ID to delete.
+
+    Returns:
+        bool: True if a row was deleted; otherwise False.
     """
     connection = _get_connection()
     cursor = connection.cursor()
@@ -168,9 +255,16 @@ def remove_account(account_id):
         cursor.close()
         connection.close()
 
+
 def view_category(category_id):
     """
-    Returns the category row for the given category ID.
+    Fetch one category by ID.
+
+    Args:
+        category_id (int): Category ID.
+
+    Returns:
+        dict | None: Category row as a dictionary, or None if not found.
     """
     connection = _get_connection()
     cursor = connection.cursor(dictionary=True)
@@ -182,10 +276,15 @@ def view_category(category_id):
         connection.close()
 
 
-
 def search_item(item_id):
     """
-    Returns the item row for the given item ID.
+    Fetch one item by ID.
+
+    Args:
+        item_id (int): Item ID.
+
+    Returns:
+        dict | None: Item row as a dictionary, or None if no item exists.
     """
     connection = _get_connection()
     cursor = connection.cursor(dictionary=True)
@@ -197,17 +296,27 @@ def search_item(item_id):
         connection.close()
 
 
+# Backward-compatible aliases for callers that use product/item terminology.
 search_product = search_item
 view_item = search_item
 
 
 def update_inventory(item_id, quantity):
     """
-    Updates the stock value for an item.
+    Add to or subtract from an item's stock value.
+
+    Args:
+        item_id (int): Item to update.
+        quantity (int): Amount to add. Use a negative number to reduce stock.
+
+    Returns:
+        bool: True if stock was updated; False if the item does not exist or the
+        update would make stock negative.
     """
     connection = _get_connection()
     cursor = connection.cursor()
     try:
+        # The WHERE condition prevents stock from dropping below zero.
         cursor.execute(
             """
             UPDATE item
@@ -231,7 +340,14 @@ def update_inventory(item_id, quantity):
 
 def low_stock_alert(item_id):
     """
-    Returns True when an item's stock is at or below its threshold.
+    Check whether an item's stock is at or below its reorder threshold.
+
+    Args:
+        item_id (int): Item to check.
+
+    Returns:
+        bool: True if stock is less than or equal to threshold; False if the item
+        does not exist or is above threshold.
     """
     connection = _get_connection()
     cursor = connection.cursor(dictionary=True)
@@ -252,7 +368,21 @@ def low_stock_alert(item_id):
 
 def create_order(account_id, item_ids, item_quantities):
     """
-    Creates an order and matching orderitem rows using the basic_schema tables.
+    Create an order, add order-item rows, and reduce inventory stock.
+
+    Args:
+        account_id (int): Buyer placing the order.
+        item_ids (list[int]): Item IDs being purchased.
+        item_quantities (list[int]): Quantities matching `item_ids` by position.
+
+    Returns:
+        int | None: New order ID when successful; None if validation fails, stock
+        is insufficient, or a database error occurs.
+
+    Transaction behavior:
+        The order insert, orderitem inserts, and stock updates are committed as
+        one transaction. If any validation or SQL step fails, the transaction is
+        rolled back so partial orders are not saved.
     """
     if not item_ids or len(item_ids) != len(item_quantities):
         return None
@@ -264,6 +394,7 @@ def create_order(account_id, item_ids, item_quantities):
     cursor = connection.cursor(dictionary=True)
 
     try:
+        # Make sure the buyer exists before creating an order for them.
         cursor.execute("SELECT accountID FROM buyer WHERE accountID = %s", (account_id,))
         if cursor.fetchone() is None:
             connection.rollback()
@@ -271,6 +402,8 @@ def create_order(account_id, item_ids, item_quantities):
 
         items = []
         for item_id, quantity in zip(item_ids, item_quantities):
+            # Lock each item row during the transaction so another order cannot
+            # read the same stock and oversell it before this order commits.
             cursor.execute(
                 """
                 SELECT itemID, stock
@@ -317,7 +450,13 @@ def create_order(account_id, item_ids, item_quantities):
 
 def view_order(order_id):
     """
-    Returns the order row for the given order ID.
+    Fetch one order by ID.
+
+    Args:
+        order_id (int): Order ID.
+
+    Returns:
+        dict | None: Order row as a dictionary, or None if not found.
     """
     connection = _get_connection()
     cursor = connection.cursor(dictionary=True)
@@ -331,7 +470,13 @@ def view_order(order_id):
 
 def view_order_items(order_id):
     """
-    Returns all orderitem rows for a given order ID.
+    Fetch all line items for an order.
+
+    Args:
+        order_id (int): Order ID.
+
+    Returns:
+        list[dict]: Zero or more orderitem rows for the order.
     """
     connection = _get_connection()
     cursor = connection.cursor(dictionary=True)
@@ -345,7 +490,16 @@ def view_order_items(order_id):
 
 def add_payment(account_id, card_num, expiration, pin):
     """
-    Inserts a payment row and returns the payment ID used.
+    Insert a payment method for a buyer account.
+
+    Args:
+        account_id (int): Buyer account that owns this payment method.
+        card_num (str): Card number to store.
+        expiration (str): Card expiration value.
+        pin (str): Card PIN value.
+
+    Returns:
+        int: The payment ID assigned to the inserted row.
     """
     payment_id = _get_next_id("payment")
     connection = _get_connection()
@@ -368,7 +522,13 @@ def add_payment(account_id, card_num, expiration, pin):
 
 def view_payment(payment_id):
     """
-    Returns the payment row for the given payment ID.
+    Fetch one payment method by ID.
+
+    Args:
+        payment_id (int): Payment ID.
+
+    Returns:
+        dict | None: Payment row as a dictionary, or None if not found.
     """
     connection = _get_connection()
     cursor = connection.cursor(dictionary=True)
@@ -382,7 +542,20 @@ def view_payment(payment_id):
 
 def update_payment(payment_id, account_id=None, card_num=None, expiration=None, pin=None):
     """
-    Updates a payment row.
+    Update selected fields for a payment method.
+
+    Only arguments that are not None are included in the SQL UPDATE statement.
+
+    Args:
+        payment_id (int): Payment row to update.
+        account_id (int | None): New owning account ID, if changing it.
+        card_num (str | None): New card number, if changing it.
+        expiration (str | None): New expiration value, if changing it.
+        pin (str | None): New PIN value, if changing it.
+
+    Returns:
+        bool: True if a row was updated; False if no fields were provided or no
+        matching payment row was found.
     """
     fields = {
         "accountID": account_id,
@@ -395,6 +568,8 @@ def update_payment(payment_id, account_id=None, card_num=None, expiration=None, 
     if not updates:
         return False
 
+    # Build the SET clause from fixed column names and pass all user-provided
+    # values separately as query parameters.
     set_clause = ", ".join(f"{column} = %s" for column, _ in updates)
     values = [value for _, value in updates]
     values.append(payment_id)
@@ -415,7 +590,13 @@ def update_payment(payment_id, account_id=None, card_num=None, expiration=None, 
 
 def remove_payment(payment_id):
     """
-    Deletes a payment row by payment ID.
+    Delete one payment method by ID.
+
+    Args:
+        payment_id (int): Payment ID to delete.
+
+    Returns:
+        bool: True if a row was deleted; otherwise False.
     """
     connection = _get_connection()
     cursor = connection.cursor()

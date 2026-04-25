@@ -217,9 +217,24 @@ UNLOCK TABLES;
 
 -- Dump completed on 2026-04-21 20:29:20
 
-INSERT INTO `supplier` VALUES (1,'sup@test.com','NY');
-INSERT INTO `supplier` VALUES (2,'sup2@test.com','LA');
-INSERT INTO `supplier` VALUES (3,'sup3@test.com','Chicago');
-INSERT INTO `category` VALUES (1,'Electronics');
-INSERT INTO `category` VALUES (2,'Clothing');
-INSERT INTO `category` VALUES (3,'Books');
+START TRANSACTION;
+
+INSERT INTO category (categoryName) VALUES
+('Electronics'),
+('Clothing'),
+('Books');
+
+INSERT INTO supplier (email, address) VALUES
+('sup@test.com', 'NY'),
+('sup2@test.com', 'LA'),
+('sup3@test.com', 'Chicago');
+
+INSERT INTO item (itemName, supplierID, stock, threshold, categoryID)
+VALUES
+('USB-C Cable', 1, 120, 20, (SELECT categoryID FROM category WHERE categoryName = 'Electronics' LIMIT 1)),
+('Bluetooth Speaker', 1, 45, 10, (SELECT categoryID FROM category WHERE categoryName = 'Electronics' LIMIT 1)),
+('Graphic T-Shirt', 2, 75, 15, (SELECT categoryID FROM category WHERE categoryName = 'Clothing' LIMIT 1)),
+('Hoodie', 2, 35, 8, (SELECT categoryID FROM category WHERE categoryName = 'Clothing' LIMIT 1)),
+('Notebook Journal', 3, 90, 25, (SELECT categoryID FROM category WHERE categoryName = 'Books' LIMIT 1));
+
+COMMIT;
