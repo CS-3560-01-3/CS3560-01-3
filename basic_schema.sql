@@ -32,15 +32,19 @@ CREATE TABLE `buyer` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
+
+/*
+accountID → unique user ID (used everywhere)
+passw → password (matches your Python backend)
+Referenced by:
+order.accountID
+payment.accountID
+*/
+
 --
 -- Dumping data for table `buyer`
 --
 
-LOCK TABLES `buyer` WRITE;
-/*!40000 ALTER TABLE `buyer` DISABLE KEYS */;
-INSERT INTO `buyer` VALUES (1,'test@gmail.com','123','LA');
-/*!40000 ALTER TABLE `buyer` ENABLE KEYS */;
-UNLOCK TABLES;
 
 --
 -- Table structure for table `category`
@@ -88,6 +92,14 @@ CREATE TABLE `item` (
 ) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
+
+/*
+stock → current inventory
+threshold → triggers low stock alert
+supplierID → FK → supplier
+categoryID → FK → category
+*/
+
 --
 -- Dumping data for table `item`
 --
@@ -129,10 +141,10 @@ UNLOCK TABLES;
 -- Table structure for table `orderitem`
 --
 
-DROP TABLE IF EXISTS `orderitem`;
+DROP TABLE IF EXISTS `order_item`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `orderitem` (
+CREATE TABLE `order_item` (
   `orderID` int NOT NULL,
   `itemID` int NOT NULL,
   `itemQuantity` int DEFAULT NULL,
@@ -147,10 +159,10 @@ CREATE TABLE `orderitem` (
 -- Dumping data for table `orderitem`
 --
 
-LOCK TABLES `orderitem` WRITE;
-/*!40000 ALTER TABLE `orderitem` DISABLE KEYS */;
-INSERT INTO `orderitem` VALUES (1,1,2);
-/*!40000 ALTER TABLE `orderitem` ENABLE KEYS */;
+LOCK TABLES `order_item` WRITE;
+/*!40000 ALTER TABLE `order_item` DISABLE KEYS */;
+INSERT INTO `order_item` VALUES (1,1,2);
+/*!40000 ALTER TABLE `order_item` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --
