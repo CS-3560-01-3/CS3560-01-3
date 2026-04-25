@@ -165,7 +165,7 @@ def view_account(account_id):
         connection.close()
 
 
-def login(e_mail, password):
+def login_account(e_mail, password):
     """
     Check buyer login credentials.
 
@@ -174,15 +174,15 @@ def login(e_mail, password):
         password (str): Password entered by the user.
 
     Returns:
-        int | None: Matching account ID when credentials are valid; otherwise None.
+        tuple | None: Matching account row when credentials are valid; otherwise None.
     """
     connection = _get_connection()
     cursor = connection.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT accountID, passw FROM buyer WHERE email = %s", (e_mail,))
+        cursor.execute("SELECT * FROM buyer WHERE email = %s", (e_mail,))
         result = cursor.fetchone()
         if result and result.get("passw") == password:
-            return result["accountID"]
+            return result
         else:
             return None
     finally:

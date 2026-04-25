@@ -217,9 +217,16 @@ class StoreApp:
             style.theme_use("clam")
         except Exception:
             pass
-        style.configure("TButton", padding=6)
+        style.configure("TButton", padding=6, relief="raised")
         style.configure("Header.TLabel", font=("Segoe UI", 16, "bold"))
         style.configure("Sub.TLabel", font=("Segoe UI", 11, "bold"))
+
+    '''
+    Defines style of various ttk objects
+    button styling
+    header styling
+    sub-label styling
+    '''
 
     def _clear(self):
         for w in self.root.winfo_children():
@@ -228,7 +235,7 @@ class StoreApp:
     # ==== LOGIN / REGISTER ===============================================
     def _show_login(self):
         self._clear()
-        frame = ttk.Frame(self.root, padding=40)
+        frame = ttk.Frame(self.root, padding=40, relief="raised")
         frame.place(relx=0.5, rely=0.5, anchor="center")
 
         ttk.Label(frame, text="CS 3560 E-Commerce",
@@ -248,6 +255,7 @@ class StoreApp:
                   show="*").grid(row=2, column=1, pady=5)
         
         '''
+        Shows login screen. has:
         email input
         password input
         login button
@@ -283,10 +291,10 @@ class StoreApp:
         go to main UI
         '''
 
-        ttk.Button(frame, text="Log In",
+        ttk.Button(frame, text="Log In", cursor="hand2", 
                    command=do_login).grid(row=3, column=0, columnspan=2,
                                           pady=(15, 5), sticky="ew")
-        ttk.Button(frame, text="Create Account",
+        ttk.Button(frame, text="Create Account", cursor="hand2", 
                    command=self._show_create_account).grid(
             row=4, column=0, columnspan=2, pady=5, sticky="ew")
 
@@ -384,7 +392,7 @@ class StoreApp:
                 parent=win)
             win.destroy()
 
-        ttk.Button(frm, text="Create Account",
+        ttk.Button(frm, text="Create Account", cursor="hand2", 
                    command=submit).pack(pady=(15, 0), fill="x")
 
     # ==== MAIN WINDOW ====================================================
@@ -399,7 +407,7 @@ class StoreApp:
                  f"({self.account.get('email', '-')})",
             style="Sub.TLabel"
         ).pack(side="left")
-        ttk.Button(top, text="Logout", command=self._logout).pack(side="right")
+        ttk.Button(top, text="Logout", cursor="hand2", command=self._logout).pack(side="right")
 
         nb = ttk.Notebook(self.root)
         nb.pack(fill="both", expand=True, padx=10, pady=10)
@@ -426,6 +434,8 @@ class StoreApp:
         self._build_payments(self.payment_tab)
         self._build_inventory(self.inv_tab)
 
+        nb.bind("<Motion>", self.on_mouse_move)
+
     '''
     Creates tabs:
 
@@ -446,6 +456,13 @@ class StoreApp:
         self.account = None
         self.cart.clear()
         self._show_login()
+
+    def on_mouse_move(self, event):
+        element = event.widget.identify(event.x, event.y)
+        if "label" in element or "tab" in element:
+            event.widget.config(cursor="hand2")
+        else:
+            event.widget.config(cursor="")
 
     # ==== SHOP ===========================================================
     def _build_shop(self, parent):
@@ -486,6 +503,8 @@ class StoreApp:
                 if term and term not in name.lower():
                     continue
                 stock = item.get("stock", 0)
+                if stock <= 0:
+                    continue
                 cat_id = item.get("categoryID")
                 cat_name = "-"
                 if cat_id:
@@ -507,15 +526,15 @@ class StoreApp:
 
         btns = ttk.Frame(parent)
         btns.pack(fill="x", padx=5, pady=5)
-        ttk.Button(btns, text="Search", command=refresh).pack(side="left",
+        ttk.Button(btns, text="Search", cursor="hand2", command=refresh).pack(side="left",
                                                               padx=3)
-        ttk.Button(btns, text="View Details",
+        ttk.Button(btns, text="View Details", cursor="hand2", 
                    command=lambda: self._view_item_details(tree)).pack(
             side="left", padx=3)
-        ttk.Button(btns, text="Add to Cart",
+        ttk.Button(btns, text="Add to Cart", cursor="hand2", 
                    command=lambda: self._add_to_cart(tree)).pack(
             side="left", padx=3)
-        ttk.Button(btns, text="Refresh",
+        ttk.Button(btns, text="Refresh", cursor="hand2", 
                    command=refresh).pack(side="right", padx=3)
         entry.bind("<Return>", lambda _e: refresh())
 
@@ -607,12 +626,12 @@ class StoreApp:
                   text=f"Items in cart: {sum(self.cart.values())}",
                   style="Sub.TLabel").pack(side="left")
 
-        ttk.Button(footer, text="Remove Selected",
+        ttk.Button(footer, text="Remove Selected", cursor="hand2", 
                    command=lambda: self._remove_from_cart(tree)).pack(
             side="right", padx=3)
-        ttk.Button(footer, text="Clear Cart",
+        ttk.Button(footer, text="Clear Cart", cursor="hand2",
                    command=self._clear_cart).pack(side="right", padx=3)
-        ttk.Button(footer, text="Checkout",
+        ttk.Button(footer, text="Checkout", cursor="hand2",
                    command=self._checkout).pack(side="right", padx=3)
 
     def _remove_from_cart(self, tree):
@@ -672,10 +691,10 @@ class StoreApp:
 
         btns = ttk.Frame(parent)
         btns.pack(fill="x", padx=5, pady=5)
-        ttk.Button(btns, text="View Items",
+        ttk.Button(btns, text="View Items", cursor="hand2",
                    command=lambda: self._view_order_items(tree)).pack(
             side="left", padx=3)
-        ttk.Button(btns, text="Refresh",
+        ttk.Button(btns, text="Refresh", cursor="hand2",
                    command=lambda: self._build_orders(self.orders_tab)).pack(
             side="right", padx=3)
 
@@ -764,9 +783,9 @@ class StoreApp:
 
         btns = ttk.Frame(frm)
         btns.pack(fill="x", pady=(15, 0))
-        ttk.Button(btns, text="Save Changes",
+        ttk.Button(btns, text="Save Changes", cursor="hand2",
                    command=save).pack(side="left", padx=3)
-        ttk.Button(btns, text="Delete Account",
+        ttk.Button(btns, text="Delete Account", cursor="hand2",
                    command=delete).pack(side="right", padx=3)
 
     # ==== PAYMENTS =======================================================
@@ -824,13 +843,13 @@ class StoreApp:
 
         btns = ttk.Frame(parent)
         btns.pack(fill="x", padx=5, pady=5)
-        ttk.Button(btns, text="Add Payment",
+        ttk.Button(btns, text="Add Payment", cursor="hand2",
                    command=add_pay).pack(side="left", padx=3)
-        ttk.Button(btns, text="Edit Payment",
+        ttk.Button(btns, text="Edit Payment", cursor="hand2",
                    command=edit_pay).pack(side="left", padx=3)
-        ttk.Button(btns, text="Remove Payment",
+        ttk.Button(btns, text="Remove Payment", cursor="hand2",
                    command=remove_pay).pack(side="left", padx=3)
-        ttk.Button(btns, text="Refresh",
+        ttk.Button(btns, text="Refresh", cursor="hand2",
                    command=lambda: self._build_payments(parent)).pack(
             side="right", padx=3)
 
@@ -909,9 +928,9 @@ class StoreApp:
 
         btns = ttk.Frame(parent)
         btns.pack(fill="x", padx=10, pady=5)
-        ttk.Button(btns, text="Change Stock (+/-)",
+        ttk.Button(btns, text="Change Stock (+/-)", cursor="hand2",
                    command=change_stock).pack(side="left", padx=3)
-        ttk.Button(btns, text="Refresh",
+        ttk.Button(btns, text="Refresh", cursor="hand2",
                    command=refresh).pack(side="right", padx=3)
         refresh()
 
@@ -993,9 +1012,9 @@ class CheckoutDialog(Toplevel):
                         onvalue="1", offvalue="0").pack(anchor="w",
                                                         pady=(3, 0))
 
-        ttk.Button(frm, text="Place Order",
+        ttk.Button(frm, text="Place Order", cursor="hand2",
                    command=self._place).pack(pady=(15, 0), fill="x")
-        ttk.Button(frm, text="Cancel",
+        ttk.Button(frm, text="Cancel", cursor="hand2",
                    command=self.destroy).pack(pady=(5, 0), fill="x")
 
     def _place(self):
@@ -1110,9 +1129,9 @@ class PaymentDialog(Toplevel):
                 e.config(show=show)
             e.pack(side="left", fill="x", expand=True)
 
-        ttk.Button(frm, text="Save",
+        ttk.Button(frm, text="Save", cursor="hand2",
                    command=self._save).pack(fill="x", pady=(15, 0))
-        ttk.Button(frm, text="Cancel",
+        ttk.Button(frm, text="Cancel", cursor="hand2",
                    command=self.destroy).pack(fill="x", pady=(5, 0))
 
     def _save(self):
