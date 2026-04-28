@@ -428,7 +428,7 @@ def create_order(account_id, item_ids, item_quantities):
         for item, quantity in zip(items, item_quantities):
             cursor.execute(
                 """
-                INSERT INTO orderitem (orderID, itemID, itemQuantity)
+                INSERT INTO order_item (orderID, itemID, itemQuantity)
                 VALUES (%s, %s, %s)
                 """,
                 (order_id, item["itemID"], quantity),
@@ -481,7 +481,7 @@ def view_order_items(order_id):
     connection = _get_connection()
     cursor = connection.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT * FROM orderitem WHERE orderID = %s", (order_id,))
+        cursor.execute("SELECT * FROM order_item WHERE orderID = %s", (order_id,))
         return cursor.fetchall()
     finally:
         cursor.close()
