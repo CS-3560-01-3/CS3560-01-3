@@ -871,7 +871,7 @@ class StoreApp:
         for c, t, w in (("id", "ID", 60), ("name", "Item", 320),
                         ("stock", "Stock", 90),
                         ("threshold", "Threshold", 100),
-                        ("low", "Low?", 80)):
+                        ("low", "Low", 80)):
             tree.heading(c, text=t)
             tree.column(c, width=w,
                         anchor="w" if c == "name" else "center")
