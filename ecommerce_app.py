@@ -403,8 +403,7 @@ class StoreApp:
         top.pack(fill="x")
         ttk.Label(
             top,
-            text=f"Logged in: Account #{self.account_id} "
-                 f"({self.account.get('email', '-')})",
+            text=f"Logged in: {self.account.get('email', '-')}",
             style="Sub.TLabel"
         ).pack(side="left")
         ttk.Button(top, text="Logout", cursor="hand2", command=self._logout).pack(side="right")
@@ -561,10 +560,6 @@ class StoreApp:
             lines.append("")
             lines.append("Category: " + str(
                 cat.get("categoryName") or cat.get("name") or "-"))
-        if db.low_stock_alert(item_id):
-            lines.append("")
-            lines.append("!!! LOW STOCK — at or below reorder threshold")
-
         messagebox.showinfo("Item Details", "\n".join(lines))
 
     def _add_to_cart(self, tree):
@@ -680,14 +675,19 @@ class StoreApp:
             tree.column(c, width=w, anchor="center")
         tree.pack(fill="both", expand=True, padx=5, pady=5)
 
-        for order_id in iter_ids("order"):
-            order = db.view_order(order_id)
-            if not order:
-                continue
-            if order.get("accountID") != self.account_id:
-                continue
-            tree.insert("", END, values=(
-                order_id, str(order.get("purchaseDate", "-"))))
+        try:
+            orders = db.view_orders_by_account(self.account_id)
+        except mysql.connector.Error as e:
+            messagebox.showerror("Database Error", str(e))
+            orders = []
+
+        if not orders:
+            tree.insert("", END, values=("-", "No orders found"))
+        else:
+            for order in orders:
+                tree.insert("", END, values=(
+                    order.get("orderID", "-"),
+                    str(order.get("purchaseDate", "-"))))
 
         btns = ttk.Frame(parent)
         btns.pack(fill="x", padx=5, pady=5)
@@ -703,8 +703,12 @@ class StoreApp:
         if not sel:
             messagebox.showinfo("Info", "Select an order first.")
             return
-        order_id = int(tree.item(sel)["values"][0])
-        rows = db.view_order_items(order_id)
+        raw_order_id = tree.item(sel)["values"][0]
+        if raw_order_id == "-":
+            messagebox.showinfo("Info", "No order selected.")
+            return
+        order_id = int(raw_order_id)
+        rows = db.view_orderItems(order_id)
         if not rows:
             messagebox.showinfo("Info", "No items on this order.")
             return
@@ -860,23 +864,21 @@ class StoreApp:
 
         info = ttk.Label(
             parent,
-            text=("Inventory view — uses update_inventory() and "
-                  "low_stock_alert() from the backend. Stock changes can "
-                  "be negative (remove) or positive (restock)."),
+            text=("Inventory view — uses update_inventory() from the backend. "
+                  "If stock falls below threshold, it auto-restocks by 30. "
+                  "Stock changes can be negative (remove) or positive (restock)."),
             foreground="#555", wraplength=900, justify="left")
         info.pack(anchor="w", padx=10, pady=(10, 5))
 
-        cols = ("id", "name", "stock", "threshold", "low")
+        cols = ("id", "name", "stock", "threshold")
         tree = ttk.Treeview(parent, columns=cols, show="headings", height=14)
-        for c, t, w in (("id", "ID", 60), ("name", "Item", 320),
-                        ("stock", "Stock", 90),
-                        ("threshold", "Threshold", 100),
-                        ("low", "Low", 80)):
+        for c, t, w in (("id", "ID", 60), ("name", "Item", 360),
+                        ("stock", "Stock", 120),
+                        ("threshold", "Threshold", 120)):
             tree.heading(c, text=t)
             tree.column(c, width=w,
                         anchor="w" if c == "name" else "center")
         tree.pack(fill="both", expand=True, padx=10, pady=5)
-        tree.tag_configure("low", background="#ffe0e0")
 
         def refresh():
             for r in tree.get_children():
@@ -887,12 +889,8 @@ class StoreApp:
                     continue
                 stock = item.get("stock", "-")
                 threshold = item.get("threshold", "-")
-                low = db.low_stock_alert(item_id)
-                tree.insert(
-                    "", END,
-                    values=(item_id, item_name(item),
-                            stock, threshold, "YES" if low else ""),
-                    tags=("low",) if low else ())
+                tree.insert("", END,
+                            values=(item_id, item_name(item), stock, threshold))
 
         def change_stock():
             sel = tree.focus()
@@ -919,11 +917,6 @@ class StoreApp:
                     "Error",
                     "Could not apply change. Stock would go negative or "
                     "the item was not found.")
-            else:
-                if db.low_stock_alert(item_id):
-                    messagebox.showwarning(
-                        "Low Stock Alert",
-                        f"'{name}' is at or below its reorder threshold!")
             refresh()
 
         btns = ttk.Frame(parent)
