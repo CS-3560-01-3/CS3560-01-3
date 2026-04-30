@@ -48,6 +48,7 @@ import mysql.connector        # MySQL connection driver
 from datetime import datetime # Used for validating date formats
 from tkinter import Tk, Toplevel, StringVar, END, messagebox, simpledialog
 from tkinter import ttk       # Tkinter themed widgets (modern UI)
+import database_methods as db
 
 
 
@@ -81,25 +82,6 @@ except Exception as e:
     print("Error:", e)
 
 '''
-
-
-
-
-try:
-    import database_methods as db
-except ImportError as e:
-    raise SystemExit(
-        "Could not import database_methods.py. Make sure it is in the "
-        "same folder as this script.\nOriginal error: " + str(e)
-    )
-
-try:
-    import mysql.connector
-except ImportError:
-    raise SystemExit(
-        "mysql-connector-python is required. Install with:\n"
-        "    pip install mysql-connector-python"
-    )
 
 
 # ---------------------------------------------------------------------------

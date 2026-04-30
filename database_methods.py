@@ -699,6 +699,3 @@ def remove_payment(payment_id):
         connection.close()
     
         return cursor.rowcount > 0
-    finally:
-        cursor.close()
-        connection.close()
