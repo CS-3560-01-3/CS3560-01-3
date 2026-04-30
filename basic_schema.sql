@@ -137,32 +137,28 @@ INSERT INTO `order` VALUES (1,1,'2026-01-01');
 /*!40000 ALTER TABLE `order` ENABLE KEYS */;
 UNLOCK TABLES;
 
---
--- Table structure for table `orderitem`
---
-
-DROP TABLE IF EXISTS `order_item`;
+DROP TABLE IF EXISTS `orderItem`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `order_item` (
+CREATE TABLE `orderItem` (
   `orderID` int NOT NULL,
   `itemID` int NOT NULL,
   `itemQuantity` int DEFAULT NULL,
   PRIMARY KEY (`orderID`,`itemID`),
   KEY `itemID` (`itemID`),
-  CONSTRAINT `orderitem_ibfk_1` FOREIGN KEY (`orderID`) REFERENCES `order` (`orderID`),
-  CONSTRAINT `orderitem_ibfk_2` FOREIGN KEY (`itemID`) REFERENCES `item` (`itemID`)
+  CONSTRAINT `orderItem_ibfk_1` FOREIGN KEY (`orderID`) REFERENCES `order` (`orderID`),
+  CONSTRAINT `orderItem_ibfk_2` FOREIGN KEY (`itemID`) REFERENCES `item` (`itemID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Dumping data for table `orderitem`
+-- Dumping data for table `orderItem`
 --
 
-LOCK TABLES `order_item` WRITE;
-/*!40000 ALTER TABLE `order_item` DISABLE KEYS */;
-INSERT INTO `order_item` VALUES (1,1,2);
-/*!40000 ALTER TABLE `order_item` ENABLE KEYS */;
+LOCK TABLES `orderItem` WRITE;
+/*!40000 ALTER TABLE `orderItem` DISABLE KEYS */;
+INSERT INTO `orderItem` VALUES (1,1,2);
+/*!40000 ALTER TABLE `orderItem` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --
