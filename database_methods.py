@@ -190,7 +190,7 @@ def login_account(e_mail, password):
         connection.close()
 
 
-def update_account(account_id, phone_number=None, e_mail=None, address=None):
+def update_account(account_id, phone_number=None, e_mail=None, address=None, password=None):
     """
     Update selected contact fields for a buyer account.
 
@@ -210,6 +210,7 @@ def update_account(account_id, phone_number=None, e_mail=None, address=None):
         "phoneNum": phone_number,
         "email": e_mail,
         "address": address,
+        "passw": password,
     }
     updates = [(column, value) for column, value in fields.items() if value is not None]
 
@@ -305,6 +306,8 @@ def update_inventory(item_id, quantity):
     """
     Add to or subtract from an item's stock value.
 
+    If the resulting stock falls below threshold, automatically restock by 30.
+
     Args:
         item_id (int): Item to update.
         quantity (int): Amount to add. Use a negative number to reduce stock.
@@ -316,7 +319,6 @@ def update_inventory(item_id, quantity):
     connection = _get_connection()
     cursor = connection.cursor()
     try:
-        # The WHERE condition prevents stock from dropping below zero.
         cursor.execute(
             """
             UPDATE item
@@ -330,8 +332,17 @@ def update_inventory(item_id, quantity):
             connection.rollback()
             return False
 
+        # Replace low-stock alerts with automatic replenishment.
+        cursor.execute(
+            """
+            UPDATE item
+            SET stock = stock + 30
+            WHERE itemID = %s AND stock < threshold
+            """,
+            (item_id,),
+        )
+
         connection.commit()
-        low_stock_alert(item_id)
         return True
     finally:
         cursor.close()
@@ -340,14 +351,10 @@ def update_inventory(item_id, quantity):
 
 def low_stock_alert(item_id):
     """
-    Check whether an item's stock is at or below its reorder threshold.
+    Compatibility helper: report whether an item is below threshold.
 
-    Args:
-        item_id (int): Item to check.
-
-    Returns:
-        bool: True if stock is less than or equal to threshold; False if the item
-        does not exist or is above threshold.
+    Note:
+        Stock-changing paths now auto-restock by 30 when stock < threshold.
     """
     connection = _get_connection()
     cursor = connection.cursor(dictionary=True)
@@ -360,50 +367,57 @@ def low_stock_alert(item_id):
         if item is None:
             return False
 
-        return item["stock"] <= item["threshold"]
+        stock = item.get("stock")
+        threshold = item.get("threshold")
+        if stock is None or threshold is None:
+            return False
+
+        return stock < threshold
     finally:
         cursor.close()
         connection.close()
 
 
-def create_order(account_id, item_ids, item_quantities):
+def create_order_detailed(account_id, item_ids, item_quantities):
     """
-    Create an order, add order-item rows, and reduce inventory stock.
-
-    Args:
-        account_id (int): Buyer placing the order.
-        item_ids (list[int]): Item IDs being purchased.
-        item_quantities (list[int]): Quantities matching `item_ids` by position.
+    Create an order and return structured success/failure details.
 
     Returns:
-        int | None: New order ID when successful; None if validation fails, stock
-        is insufficient, or a database error occurs.
-
-    Transaction behavior:
-        The order insert, orderitem inserts, and stock updates are committed as
-        one transaction. If any validation or SQL step fails, the transaction is
-        rolled back so partial orders are not saved.
+        dict: {
+            "ok": bool,
+            "order_id": int | None,
+            "reason": str | None,
+        }
     """
     if not item_ids or len(item_ids) != len(item_quantities):
-        return None
+        return {
+            "ok": False,
+            "order_id": None,
+            "reason": "Cart is empty or item quantities are invalid.",
+        }
 
     if any(quantity <= 0 for quantity in item_quantities):
-        return None
+        return {
+            "ok": False,
+            "order_id": None,
+            "reason": "Each item quantity must be at least 1.",
+        }
 
     connection = _get_connection()
     cursor = connection.cursor(dictionary=True)
 
     try:
-        # Make sure the buyer exists before creating an order for them.
         cursor.execute("SELECT accountID FROM buyer WHERE accountID = %s", (account_id,))
         if cursor.fetchone() is None:
             connection.rollback()
-            return None
+            return {
+                "ok": False,
+                "order_id": None,
+                "reason": "Your account record was not found. Please log in again.",
+            }
 
         items = []
         for item_id, quantity in zip(item_ids, item_quantities):
-            # Lock each item row during the transaction so another order cannot
-            # read the same stock and oversell it before this order commits.
             cursor.execute(
                 """
                 SELECT itemID, stock
@@ -414,9 +428,23 @@ def create_order(account_id, item_ids, item_quantities):
                 (item_id,),
             )
             item = cursor.fetchone()
-            if item is None or item["stock"] < quantity:
+            if item is None:
                 connection.rollback()
-                return None
+                return {
+                    "ok": False,
+                    "order_id": None,
+                    "reason": f"Item {item_id} no longer exists.",
+                }
+            if item["stock"] < quantity:
+                connection.rollback()
+                return {
+                    "ok": False,
+                    "order_id": None,
+                    "reason": (
+                        f"Insufficient stock for item {item_id}: "
+                        f"requested {quantity}, available {item['stock']}."
+                    ),
+                }
             items.append(item)
 
         cursor.execute(
@@ -428,7 +456,7 @@ def create_order(account_id, item_ids, item_quantities):
         for item, quantity in zip(items, item_quantities):
             cursor.execute(
                 """
-                INSERT INTO order_item (orderID, itemID, itemQuantity)
+                INSERT INTO orderItem (orderID, itemID, itemQuantity)
                 VALUES (%s, %s, %s)
                 """,
                 (order_id, item["itemID"], quantity),
@@ -437,15 +465,44 @@ def create_order(account_id, item_ids, item_quantities):
                 "UPDATE item SET stock = stock - %s WHERE itemID = %s",
                 (quantity, item["itemID"]),
             )
+            cursor.execute(
+                """
+                UPDATE item
+                SET stock = stock + 30
+                WHERE itemID = %s AND stock < threshold
+                """,
+                (item["itemID"],),
+            )
 
         connection.commit()
-        return order_id
-    except mysql.connector.Error:
+        return {
+            "ok": True,
+            "order_id": order_id,
+            "reason": None,
+        }
+    except mysql.connector.Error as e:
         connection.rollback()
-        return None
+        return {
+            "ok": False,
+            "order_id": None,
+            "reason": f"Database error: {e}",
+        }
     finally:
         cursor.close()
         connection.close()
+
+
+def create_order(account_id, item_ids, item_quantities):
+    """
+    Create an order, add order-item rows, and reduce inventory stock.
+
+    Returns:
+        int | None: New order ID when successful; otherwise None.
+    """
+    result = create_order_detailed(account_id, item_ids, item_quantities)
+    if result["ok"]:
+        return result["order_id"]
+    return None
 
 
 def view_order(order_id):
@@ -468,7 +525,35 @@ def view_order(order_id):
         connection.close()
 
 
-def view_order_items(order_id):
+def view_orders_by_account(account_id):
+    """
+    Fetch all orders for a buyer account.
+
+    Args:
+        account_id (int): Buyer account ID.
+
+    Returns:
+        list[dict]: Orders belonging to the account, newest first.
+    """
+    connection = _get_connection()
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """
+            SELECT *
+            FROM `order`
+            WHERE accountID = %s
+            ORDER BY purchaseDate DESC, orderID DESC
+            """,
+            (account_id,),
+        )
+        return cursor.fetchall()
+    finally:
+        cursor.close()
+        connection.close()
+
+
+def view_orderItems(order_id):
     """
     Fetch all line items for an order.
 
@@ -476,16 +561,20 @@ def view_order_items(order_id):
         order_id (int): Order ID.
 
     Returns:
-        list[dict]: Zero or more orderitem rows for the order.
+        list[dict]: Zero or more orderItem rows for the order.
     """
     connection = _get_connection()
     cursor = connection.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT * FROM order_item WHERE orderID = %s", (order_id,))
+        cursor.execute("SELECT * FROM orderItem WHERE orderID = %s", (order_id,))
         return cursor.fetchall()
     finally:
         cursor.close()
         connection.close()
+
+
+# Backward-compatible alias for callers using snake_case.
+view_order_items = view_orderItems
 
 
 def add_payment(account_id, card_num, expiration, pin):
@@ -604,6 +693,11 @@ def remove_payment(payment_id):
         cursor.execute("DELETE FROM payment WHERE paymentID = %s", (payment_id,))
         connection.commit()
         refresh_id_counters()
+        return cursor.rowcount > 0
+    finally:
+        cursor.close()
+        connection.close()
+    
         return cursor.rowcount > 0
     finally:
         cursor.close()
